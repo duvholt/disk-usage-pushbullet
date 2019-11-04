@@ -55,7 +55,7 @@ fn check_disk_usage(log: &slog::Logger, treshold: f64, pushed: bool) -> Result<b
             mounts
                 .into_iter()
                 .find(|mount| mount.fs_mounted_on == "/")
-                .ok_or("Unable to find root mount".to_owned())
+                .ok_or_else(|| "Unable to find root mount".to_owned())
         })?;
     let percentage = root_mount.avail.as_u64() as f64 / root_mount.total.as_u64() as f64;
     let log = log.new(o!("percentage" => format!("{:.2}", percentage)));
