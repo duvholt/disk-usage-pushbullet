@@ -15,12 +15,25 @@ struct Message {
 
 fn push(log: &slog::Logger, percentage: f64) -> Result<(), String> {
     info!(log, "Sending push message");
-    let token = std::env::var("PUSHBULLET_TOKEN")
-        .map_err(|err| format!("Unable to get PushBullet token: {:#?}", err))?;
+
+    let root_mount = root_filesystem()?;
+    let body = format!(
+        "Only {}({:.2}%) left!",
+        root_mount.avail,
+        percentage * 100.0
+    );
+    let title = "Low disk space";
+
+    let token = std::env::var("PUSHBULLET_TOKEN").map_err(|err| {
+        format!(
+            "Unable to get PushBullet token: {:#?}. Would've sent: {}",
+            err, body
+        )
+    })?;
 
     let message = Message {
-        body: format!("Only {:.2}% left!", percentage * 100.0),
-        title: "Low disk space",
+        body,
+        title,
         r#type: "note",
     };
 
@@ -45,18 +58,21 @@ fn push(log: &slog::Logger, percentage: f64) -> Result<(), String> {
     }
 }
 
-fn disk_usage(log: &slog::Logger) -> Result<f64, String> {
-    debug!(log, "Checking disk usage");
+fn root_filesystem() -> Result<systemstat::Filesystem, String> {
     let sys = System::new();
-    let root_mount = sys
-        .mounts()
+    sys.mounts()
         .map_err(|err| format!("Sys mount error: {:#?}", err))
         .and_then(|mounts| {
             mounts
                 .into_iter()
                 .find(|mount| mount.fs_mounted_on == "/")
                 .ok_or_else(|| "Unable to find root mount".to_owned())
-        })?;
+        })
+}
+
+fn disk_usage(log: &slog::Logger) -> Result<f64, String> {
+    debug!(log, "Checking disk usage");
+    let root_mount = root_filesystem()?;
     Ok(root_mount.avail.as_u64() as f64 / root_mount.total.as_u64() as f64)
 }
 
